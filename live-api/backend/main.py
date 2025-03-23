@@ -11,7 +11,6 @@ import os
 from dotenv import load_dotenv
 import asyncio
 from websockets.asyncio.server import serve
-import base64
 
 
 load_dotenv()
@@ -43,16 +42,22 @@ async def handler(websocket):
         model=model_id,
         config=live_connect_config,
     ) as session:
+
         async def send():
             async for data in websocket:
                 if data == "exit":
                     break
-                await session.send(input={
-                    "media_chunks": [{
-                        "data": data,
-                        "mime_type": "audio/pcm",
-                    }],
-                })
+                await session.send(
+                    input={
+                        "media_chunks": [
+                            {
+                                "data": data,
+                                "mime_type": "audio/pcm",
+                            }
+                        ],
+                    }
+                )
+
         send_task = asyncio.create_task(send())
 
         async for response in session.receive():
