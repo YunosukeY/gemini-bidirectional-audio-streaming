@@ -55,3 +55,89 @@ export class LiveAudioOutputManager {
     return float32Array;
   }
 }
+
+export class LiveAudioInputManager {
+  audioContext: AudioContext | undefined;
+  processor: ScriptProcessorNode | undefined;
+  pcmData: number[];
+
+  deviceId: string | undefined;
+  interval: NodeJS.Timeout | undefined;
+  stream: MediaStream | undefined;
+
+  onNewAudioRecordingChunk: ((audioData: string) => void) | undefined;
+
+  constructor() {
+    this.pcmData = [];
+  }
+
+  async connectMicrophone() {
+    this.audioContext = new AudioContext({
+      sampleRate: 16000,
+    });
+
+    const constraints = {
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        deviceId: this.deviceId ? { exact: this.deviceId } : undefined,
+      },
+    };
+
+    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    const source = this.audioContext.createMediaStreamSource(this.stream);
+    this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+
+    this.processor.onaudioprocess = (e) => {
+      const inputData = e.inputBuffer.getChannelData(0);
+      // Convert float32 to int16
+      const pcm16 = new Int16Array(inputData.length);
+      for (let i = 0; i < inputData.length; i++) {
+        pcm16[i] = inputData[i] * 0x7fff;
+      }
+      this.pcmData.push(...pcm16);
+    };
+
+    source.connect(this.processor);
+    this.processor.connect(this.audioContext.destination);
+
+    this.interval = setInterval(this.recordChunk.bind(this), 1000);
+  }
+
+  newAudioRecording(b64AudioData: string) {
+    this.onNewAudioRecordingChunk?.(b64AudioData);
+  }
+
+  recordChunk() {
+    const buffer = new ArrayBuffer(this.pcmData.length * 2);
+    const view = new DataView(buffer);
+    this.pcmData.forEach((value, index) => {
+      view.setInt16(index * 2, value, true);
+    });
+
+    const base64 = btoa(
+      String.fromCharCode.apply(null, [...new Uint8Array(buffer)])
+    );
+    this.newAudioRecording(base64);
+    this.pcmData = [];
+  }
+
+  disconnectMicrophone() {
+    try {
+      this.processor?.disconnect();
+      this.audioContext?.close();
+    } catch {
+      console.error("Error disconnecting microphone");
+    }
+
+    if (this.interval) {
+      clearInterval(this.interval);
+    }
+  }
+
+  async updateMicrophoneDevice(deviceId: string) {
+    this.deviceId = deviceId;
+    this.disconnectMicrophone();
+  }
+}

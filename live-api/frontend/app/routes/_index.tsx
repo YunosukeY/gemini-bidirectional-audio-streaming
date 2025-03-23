@@ -1,6 +1,7 @@
 import type { MetaFunction } from "@remix-run/node";
-import { useState } from "react";
-import { LiveAudioOutputManager } from "../liveMediaManager";
+import { useEffect, useRef, useState } from "react";
+import { LiveAudioInputManager, LiveAudioOutputManager } from "../liveMediaManager";
+import { type Device, getAvailableAudioInputs } from "../device";
 
 export const meta: MetaFunction = () => {
   return [
@@ -10,20 +11,49 @@ export const meta: MetaFunction = () => {
 };
 
 export default function Index() {
-  const [query, setQuery] = useState("")
+  const audioInputManagerRef = useRef<LiveAudioInputManager>()
+  const audioOutputManagerRef = useRef<LiveAudioOutputManager>()
+  useEffect(() => {
+    // クライアントサイドでの初期化が必要
+    audioInputManagerRef.current = new LiveAudioInputManager()
+    audioOutputManagerRef.current = new LiveAudioOutputManager()
+  }, [])
 
-  const onSend = () => {
-    const manager = new LiveAudioOutputManager()
+  const [devices, setDevices] = useState<Device[]>([]);
+  useEffect(() => {
+    // クライアントサイドでの初期化が必要
+    getAvailableAudioInputs().then(setDevices);
+  }, [])
 
-    const websocket = new WebSocket("ws://localhost:8765")
-    websocket.onopen = () => {
-      websocket.send(query)
-    }
-    websocket.onmessage = async (event) => {
+  const [selectedMic, setSelectedMic] = useState<string>("")
+  const newMicSelected = (deviceId: string) => {
+    setSelectedMic(deviceId)
+    audioInputManagerRef.current?.updateMicrophoneDevice(deviceId)
+  }
+
+  const [isChatting, setIsChatting] = useState(false)
+  const websocketRef = useRef<WebSocket>()
+  const startAudioInput = () => {
+    setIsChatting(true)
+
+    websocketRef.current = new WebSocket("ws://localhost:8765")
+    websocketRef.current.onmessage = async (event) => {
       if (event.data instanceof Blob) {
-        manager.playAudioChunk(await event.data.arrayBuffer())
+        audioOutputManagerRef.current?.playAudioChunk(await event.data.arrayBuffer())
       }
     }
+
+    if (audioInputManagerRef.current) {
+      audioInputManagerRef.current.onNewAudioRecordingChunk = (audioData: string) => {
+        websocketRef.current?.send(audioData)
+      }
+      audioInputManagerRef.current?.connectMicrophone();
+    }
+  }
+  const stopAudioInput = () => {
+    setIsChatting(false)
+    audioInputManagerRef.current?.disconnectMicrophone();
+    websocketRef.current?.send("exit")
   }
 
   return (
@@ -31,14 +61,13 @@ export default function Index() {
       <div className="flex flex-col items-center gap-16">
         <div>
           <div>
-            <label htmlFor="message">メッセージ</label>
+            <label htmlFor="mic">マイクを選択</label>
           </div>
           <div>
-            <textarea
-              id="message"
-              rows={4}
-              cols={50}
-              onChange={(e) => setQuery(e.target.value)}
+            <select
+              id="mic"
+              value={selectedMic}
+              onChange={(e) => newMicSelected(e.target.value)}
               style={{
                 padding: "0.5rem",
                 border: "1px solid #ccc",
@@ -46,22 +75,27 @@ export default function Index() {
                 boxShadow: "none",
               }}
             >
-              {query}
-            </textarea>
+              <option value="">選択してください</option>
+              {devices.map((device) => (
+                <option key={device.id} value={device.id}>{device.name}</option>
+              ))}
+            </select>
           </div>
+        </div>
+        {selectedMic && (
           <div>
             <button
               type="button"
-              onClick={onSend}
+              onClick={isChatting ? stopAudioInput : startAudioInput}
               style={{
-                border: "1px solid #ccc",
                 padding: "0.5rem 1rem",
+                border: "1px solid #ccc",
               }}
             >
-              送信
+              {isChatting ? "会話終了" : "会話開始"}
             </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
