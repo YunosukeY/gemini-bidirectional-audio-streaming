@@ -1,5 +1,11 @@
 from google import genai
-from google.genai.types import LiveConnectConfig, HttpOptions, Modality
+from google.genai.types import (
+    LiveConnectConfig,
+    HttpOptions,
+    SpeechConfig,
+    VoiceConfig,
+    PrebuiltVoiceConfig,
+)
 import asyncio
 import os
 from dotenv import load_dotenv
@@ -18,20 +24,36 @@ client = genai.Client(
 )
 model_id = "gemini-2.0-flash-exp"
 
+live_connect_config = LiveConnectConfig(
+    response_modalities=["AUDIO"],
+    speech_config=SpeechConfig(
+        voice_config=VoiceConfig(
+            prebuilt_voice_config=PrebuiltVoiceConfig(
+                voice_name="Aoede",
+            )
+        )
+    ),
+)
 
+
+# See https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/multimodal-live-api/intro_multimodal_live_api_genai_sdk.ipynb
 async def handler(websocket):
     async with client.aio.live.connect(
         model=model_id,
-        config=LiveConnectConfig(response_modalities=[Modality.TEXT]),
+        config=live_connect_config,
     ) as session:
         async for query in websocket:
-            print(f"Received: {query}")
             await session.send(input=query, end_of_turn=True)
 
-            async for answer in session.receive():
-                if answer.text:
-                    print(f"Received: {answer.text}")
-                    await websocket.send(answer.text)
+            async for response in session.receive():
+                if (
+                    response.server_content.model_turn
+                    and response.server_content.model_turn.parts
+                ):
+                    for part in response.server_content.model_turn.parts:
+                        if part.inline_data:
+                            await websocket.send(part.inline_data.data)
+
             await websocket.close()
 
 

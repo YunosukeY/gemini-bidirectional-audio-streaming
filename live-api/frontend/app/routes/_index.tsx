@@ -1,5 +1,6 @@
 import type { MetaFunction } from "@remix-run/node";
 import { useState } from "react";
+import { LiveAudioOutputManager } from "../liveMediaManager";
 
 export const meta: MetaFunction = () => {
   return [
@@ -10,17 +11,18 @@ export const meta: MetaFunction = () => {
 
 export default function Index() {
   const [query, setQuery] = useState("")
-  const [answer, setAnswer] = useState("")
 
   const onSend = () => {
-    setAnswer("")
+    const manager = new LiveAudioOutputManager()
 
     const websocket = new WebSocket("ws://localhost:8765")
     websocket.onopen = () => {
       websocket.send(query)
     }
-    websocket.onmessage = (event) => {
-      setAnswer((prev) => prev + event.data)
+    websocket.onmessage = async (event) => {
+      if (event.data instanceof Blob) {
+        manager.playAudioChunk(await event.data.arrayBuffer())
+      }
     }
   }
 
@@ -58,26 +60,6 @@ export default function Index() {
             >
               送信
             </button>
-          </div>
-        </div>
-        <div>
-          <div>
-            <label htmlFor="answer">回答</label>
-          </div>
-          <div>
-            <textarea
-              id="answer"
-              rows={4}
-              cols={50}
-              value={answer}
-              readOnly
-              style={{
-                padding: "0.5rem",
-                border: "1px solid #ccc",
-                outline: "none",
-                boxShadow: "none",
-              }}
-            />
           </div>
         </div>
       </div>
