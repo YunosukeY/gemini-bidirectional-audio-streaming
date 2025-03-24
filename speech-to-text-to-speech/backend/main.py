@@ -1,11 +1,11 @@
-from websockets.sync.server import serve
+from websockets.sync.server import serve, ServerConnection
 from genai import answer
 from texttospeech import tts_request_generator_from, text_to_speech
 from speechtotext import speech_to_text, stt_request_generator_from
 from websocket import text_generator_from
 
 
-def handler(websocket):
+def handler(websocket: ServerConnection):
     text_generator = text_generator_from(websocket)
     stt_request_generator = stt_request_generator_from(text_generator)
     query = speech_to_text(stt_request_generator)

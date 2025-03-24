@@ -5,12 +5,12 @@ from google.genai.types import (
     SpeechConfig,
     VoiceConfig,
     PrebuiltVoiceConfig,
+    Modality,
 )
 import asyncio
 import os
 from dotenv import load_dotenv
-import asyncio
-from websockets.asyncio.server import serve
+from websockets.asyncio.server import serve, ServerConnection
 
 
 load_dotenv()
@@ -25,7 +25,7 @@ client = genai.Client(
 model_id = "gemini-2.0-flash-exp"
 
 live_connect_config = LiveConnectConfig(
-    response_modalities=["AUDIO"],
+    response_modalities=[Modality.AUDIO],
     speech_config=SpeechConfig(
         voice_config=VoiceConfig(
             prebuilt_voice_config=PrebuiltVoiceConfig(
@@ -37,7 +37,7 @@ live_connect_config = LiveConnectConfig(
 
 
 # See https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/multimodal-live-api/intro_multimodal_live_api_genai_sdk.ipynb
-async def handler(websocket):
+async def handler(websocket: ServerConnection):
     async with client.aio.live.connect(
         model=model_id,
         config=live_connect_config,
@@ -62,11 +62,12 @@ async def handler(websocket):
 
         async for response in session.receive():
             if (
-                response.server_content.model_turn
+                response.server_content
+                and response.server_content.model_turn
                 and response.server_content.model_turn.parts
             ):
                 for part in response.server_content.model_turn.parts:
-                    if part.inline_data:
+                    if part.inline_data and part.inline_data.data:
                         await websocket.send(part.inline_data.data)
 
         while not send_task.done():

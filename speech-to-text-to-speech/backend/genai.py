@@ -20,4 +20,5 @@ def answer(query: str) -> Generator[str]:
     for chunk in genai_client.models.generate_content_stream(
         model=model_id, contents=query
     ):
-        yield chunk.text
+        if chunk.text:
+            yield chunk.text

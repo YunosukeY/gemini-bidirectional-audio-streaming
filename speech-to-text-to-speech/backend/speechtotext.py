@@ -1,17 +1,19 @@
-from typing import Generator
+from typing import Any, Generator
 from google.cloud import speech
 
 speech_client = speech.SpeechClient()
 
 
-def speech_to_text(request_generator: Generator[speech.StreamingRecognizeRequest]):
+def speech_to_text(
+    request_generator: Generator[speech.StreamingRecognizeRequest],
+) -> str:
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=16000,
         language_code="ja-JP",
     )
     streaming_config = speech.StreamingRecognitionConfig(config=config)
-    responses = speech_client.streaming_recognize(
+    responses: Any = speech_client.streaming_recognize(
         config=streaming_config,
         requests=request_generator,
     )
@@ -19,7 +21,6 @@ def speech_to_text(request_generator: Generator[speech.StreamingRecognizeRequest
     for response in responses:
         for result in response.results:
             for alternative in result.alternatives:
-                print(f"Transcript: {alternative.transcript}")
                 transcript += alternative.transcript
     return transcript
 

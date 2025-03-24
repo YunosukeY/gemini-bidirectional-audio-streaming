@@ -1,8 +1,10 @@
 from typing import Generator
+from websockets.sync.server import ServerConnection
 
 
-def text_generator_from(websocket) -> Generator[str]:
+def text_generator_from(websocket: ServerConnection) -> Generator[str]:
     for chunk in websocket:
         if chunk == "exit":
             return
-        yield chunk
+        if type(chunk) is str:
+            yield chunk
