@@ -37,10 +37,8 @@ export default function Index() {
     setIsChatting(true)
 
     websocketRef.current = new WebSocket("ws://localhost:8765")
-    websocketRef.current.onmessage = async (event) => {
-      if (event.data instanceof Blob) {
-        audioOutputManagerRef.current?.playAudioChunk(await event.data.arrayBuffer())
-      }
+    websocketRef.current.onmessage = async (event: MessageEvent<Blob>) => {
+      audioOutputManagerRef.current?.playAudioChunk(await event.data.arrayBuffer())
     }
 
     if (audioInputManagerRef.current) {

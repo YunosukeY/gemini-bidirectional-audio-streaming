@@ -24,7 +24,7 @@ def text_to_speech(
         yield response.audio_content
 
 
-def request_generator_from(
+def tts_request_generator_from(
     text_generator: Generator[str],
 ) -> Generator[texttospeech.StreamingSynthesizeRequest]:
     for text in text_generator:
